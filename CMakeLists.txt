@@ -1,0 +1,19 @@
+cmake_minimum_required(VERSION 3.20.2)
+
+project(
+    asteroids
+    VERSION 0.0.1
+    LANGUAGES CXX
+)
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_BUILD_PARALLEL_LEVEL 4)
+
+set(CMAKE_CXX_STANDARD 20)
+
+if (MSVC)
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /DNDEBUG")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /DDEBUG")
+endif()
+
+add_subdirectory(src)
