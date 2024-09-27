@@ -1,6 +1,6 @@
 # Asteroids
 
-https://stackoverflow.com/questions/45955272/modern-way-to-set-compiler-flags-in-cross-platform-cmake-project
+Multi-platform asteroids game clone.
 
 ## Development
 
