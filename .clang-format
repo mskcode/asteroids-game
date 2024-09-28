@@ -11,7 +11,9 @@ AlignConsecutiveBitFields: None
 AlignConsecutiveDeclarations: None
 AlignEscapedNewlines: Right
 AlignOperands: Align
-AlignTrailingComments: true
+AlignTrailingComments:
+  Kind: Always
+  OverEmptyLines: 0
 AllowAllArgumentsOnNextLine: false
 AllowAllConstructorInitializersOnNextLine: false
 AllowAllParametersOfDeclarationOnNextLine: false
@@ -131,8 +133,8 @@ PenaltyIndentedWhitespace: 0
 PointerAlignment: Left
 PPIndentWidth: -1
 ReferenceAlignment: Pointer
-ReflowComments: true
-ShortNamespaceLines: 1
+ReflowComments: false
+ShortNamespaceLines: 0
 SortIncludes: CaseSensitive
 SortJavaStaticImport: Before
 SortUsingDeclarations: true

@@ -40,6 +40,12 @@ public:
         return dis_(prng_source.gen_);
     }
 
+    template <typename U>
+    auto nextAs() -> U
+    {
+        return static_cast<U>(next());
+    }
+
 private:
     Prng(T min, T max) :
         dis_(min, max)
