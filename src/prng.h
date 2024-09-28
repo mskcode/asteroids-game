@@ -10,6 +10,8 @@
 #undef max
 #undef min
 
+namespace engine::prng {
+
 class PrngSource;
 
 template <typename T = u64>
@@ -85,3 +87,5 @@ private:
     std::random_device rd_;
     std::mt19937_64 gen_;
 };
+
+} // namespace engine::prng

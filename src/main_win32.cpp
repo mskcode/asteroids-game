@@ -31,7 +31,8 @@ struct ScreenBuffer {
 
 static volatile bool g_run_game{true};
 static ScreenBuffer g_screen_buffer{};
-static Prng<u16> g_color_rng = Prng<u16>::create(255);
+static engine::prng::Prng<u16> g_color_rng = engine::prng::Prng<u16>::create(255
+);
 
 static void screen_buffer_init(HWND window, ScreenBuffer& screen_buffer)
 {
@@ -164,31 +165,31 @@ LRESULT CALLBACK window_procedure(
 ) noexcept
 {
     switch (message) {
-    case WM_CREATE:
-        DEBUG_PRINT("WM_CREATE\n");
-        screen_buffer_init(window, g_screen_buffer);
-        return 0;
+        case WM_CREATE:
+            DEBUG_PRINT("WM_CREATE\n");
+            screen_buffer_init(window, g_screen_buffer);
+            return 0;
 
-    case WM_SIZE:
-        DEBUG_PRINT("WM_SIZE\n");
-        screen_buffer_release(g_screen_buffer);
-        screen_buffer_init(window, g_screen_buffer);
-        return 0;
+        case WM_SIZE:
+            DEBUG_PRINT("WM_SIZE\n");
+            screen_buffer_release(g_screen_buffer);
+            screen_buffer_init(window, g_screen_buffer);
+            return 0;
 
-    case WM_PAINT: {
-        DEBUG_PRINT("WM_PAINT\n");
-        PAINTSTRUCT ps{};
-        HDC window_dc = MUST(BeginPaint(window, &ps));
-        draw(window_dc, g_screen_buffer);
-        EndPaint(window, &ps);
-        return 0;
-    }
+        case WM_PAINT: {
+            DEBUG_PRINT("WM_PAINT\n");
+            PAINTSTRUCT ps{};
+            HDC window_dc = MUST(BeginPaint(window, &ps));
+            draw(window_dc, g_screen_buffer);
+            EndPaint(window, &ps);
+            return 0;
+        }
 
-    case WM_CLOSE:
-    case WM_DESTROY:
-        DEBUG_PRINT("WM_CLOSE | WM_DESTROY\n");
-        PostQuitMessage(0);
-        return 0;
+        case WM_CLOSE:
+        case WM_DESTROY:
+            DEBUG_PRINT("WM_CLOSE | WM_DESTROY\n");
+            PostQuitMessage(0);
+            return 0;
     }
 
     // Default behavior for other messages
@@ -208,9 +209,9 @@ static void win32_message_pump()
 
         // handle special events that never reach the window procedure
         switch (message.message) {
-        case WM_QUIT:
-            g_run_game = false;
-            break;
+            case WM_QUIT:
+                g_run_game = false;
+                break;
         }
 
         // handle the message
