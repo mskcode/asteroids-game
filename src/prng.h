@@ -29,7 +29,7 @@ public:
 
     static auto create(T max, T min = 0) -> Prng<T> { return {min, max}; }
 
-    static auto createWithNaturalLimits() -> Prng<T>
+    static auto create_with_natural_limits() -> Prng<T>
     {
         constexpr auto max = std::numeric_limits<T>::max();
         constexpr auto min = std::numeric_limits<T>::min();
@@ -43,7 +43,7 @@ public:
     }
 
     template <typename U>
-    auto nextAs() -> U
+    auto next_as() -> U
     {
         return static_cast<U>(next());
     }

@@ -1,6 +1,7 @@
 #include "core.h"
 #include "prng.h"
 #include "time.h"
+#include <cstring>
 #include <format>
 
 #define WIN32_LEAN_AND_MEAN
@@ -25,8 +26,10 @@ union ARGB {
 struct ScreenBuffer {
     BITMAPINFO bitmap_info;
     ARGB* pixels;
+    u64 pixels_size;
     s32 width;
     s32 height;
+    u32 scanlines; // same as height
 };
 
 static volatile bool g_run_game{true};
@@ -34,14 +37,14 @@ static ScreenBuffer g_screen_buffer{};
 static engine::prng::Prng<u16> g_color_rng = engine::prng::Prng<u16>::create(255
 );
 static engine::prng::Prng<u32>
-    g_rng = engine::prng::Prng<u32>::createWithNaturalLimits();
+    g_rng = engine::prng::Prng<u32>::create_with_natural_limits();
 
 static auto argb_create_random() -> ARGB
 {
     ARGB argb{};
-    argb.colors.red = g_color_rng.nextAs<u8>();
-    argb.colors.green = g_color_rng.nextAs<u8>();
-    argb.colors.blue = g_color_rng.nextAs<u8>();
+    argb.colors.red = g_color_rng.next_as<u8>();
+    argb.colors.green = g_color_rng.next_as<u8>();
+    argb.colors.blue = g_color_rng.next_as<u8>();
     return argb;
 }
 
@@ -65,6 +68,7 @@ static void screen_buffer_init(HWND window, ScreenBuffer& screen_buffer)
     // configure screen buffer bounds
     screen_buffer.width = width;
     screen_buffer.height = height;
+    screen_buffer.scanlines = static_cast<u32>(height);
 
     // setup bitmap info
     screen_buffer.bitmap_info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
@@ -76,20 +80,10 @@ static void screen_buffer_init(HWND window, ScreenBuffer& screen_buffer)
     screen_buffer.bitmap_info.bmiHeader.biSizeImage = 0; // 0 when uncompressed
 
     // allocate pixel buffer
-    size_t pixel_count = static_cast<size_t>(width * height);
-    screen_buffer.pixels = new ARGB[pixel_count];
+    u64 pixel_size = static_cast<u64>(width * height);
+    screen_buffer.pixels_size = pixel_size;
+    screen_buffer.pixels = new ARGB[pixel_size];
     ZeroMemory(screen_buffer.pixels, width * height * sizeof(ARGB));
-
-    // create DCs (device context) for off-screen drawing
-    HDC window_dc = MUST(GetDC(window));
-    HDC buffer_dc = MUST(CreateCompatibleDC(window_dc));
-
-    // create bitmap and associate it with our buffer DC
-    HBITMAP bitmap = MUST(CreateCompatibleBitmap(window_dc, width, height));
-    auto result = SelectObject(buffer_dc, bitmap);
-    if (result == nullptr || result == HGDI_ERROR) {
-        PANICM("SelectObject() failed");
-    }
 }
 
 static void screen_buffer_release(ScreenBuffer& screen_buffer)
@@ -101,48 +95,34 @@ static void screen_buffer_release(ScreenBuffer& screen_buffer)
 static void
 screen_buffer_draw_pixel(ScreenBuffer& screen_buffer, s32 x, s32 y, ARGB color)
 {
+    // FIXME: change to assert
     if (x < 0 || x >= screen_buffer.width || y < 0 ||
         y >= screen_buffer.height) {
         return;
     }
 
-    screen_buffer.pixels[y * screen_buffer.width + x] = color;
+    auto index = y * screen_buffer.width + x;
+    screen_buffer.pixels[index] = color;
 }
 
 static void screen_buffer_fill(ScreenBuffer& screen_buffer, ARGB color)
 {
-    for (s32 y = 0; y < screen_buffer.height; ++y) {
-        for (s32 x = 0; x < screen_buffer.width; ++x) {
-            screen_buffer_draw_pixel(screen_buffer, x, y, color);
-        }
+    for (u64 i = 0; i < screen_buffer.pixels_size; ++i) {
+        screen_buffer.pixels[i] = color;
     }
 }
 
 static void screen_buffer_fill_random(ScreenBuffer& screen_buffer)
 {
     ARGB argb{};
-    //argb.colors.red = 0xFF;   // red
-    //argb.colors.blue = 0x00;  // blue
-    //argb.colors.green = 0x00; // green
-
-    argb.colors.red = g_color_rng.nextAs<u8>();
-    argb.colors.green = g_color_rng.nextAs<u8>();
-    argb.colors.blue = g_color_rng.nextAs<u8>();
-
-    for (s32 y = 0; y < screen_buffer.height; ++y) {
-        for (s32 x = 0; x < screen_buffer.width; ++x) {
-            screen_buffer_draw_pixel(screen_buffer, x, y, argb);
-        }
-    }
+    argb.colors.red = g_color_rng.next_as<u8>();
+    argb.colors.green = g_color_rng.next_as<u8>();
+    argb.colors.blue = g_color_rng.next_as<u8>();
+    screen_buffer_fill(screen_buffer, argb);
 }
 
 static void screen_buffer_blit(HDC device_context, ScreenBuffer& screen_buffer)
 {
-    DEBUG_PRINT("screen_buffer_blit2()\n");
-
-    // invalidate the whole window (client area) so it gets redrawn completely
-    // MUST(InvalidateRect(window, NULL, true));
-
     // prepare the bitmap
     HDC memory_dc = CreateCompatibleDC(device_context);
     HBITMAP bitmap = CreateCompatibleBitmap(
@@ -154,13 +134,13 @@ static void screen_buffer_blit(HDC device_context, ScreenBuffer& screen_buffer)
 
     // transfer the pixel data to the bitmap
     SetDIBits(
-        memory_dc, // target; device context
-        bitmap,    // target; i.e. bitmap to be altered
-        0,         // start scan line
-        static_cast<u32>(screen_buffer.height), // number of scan lines
-        screen_buffer.pixels,                   // source
-        &screen_buffer.bitmap_info,             // bitmap info
-        DIB_RGB_COLORS                          // literal RGB values
+        memory_dc,                  // target; device context
+        bitmap,                     // target; i.e. bitmap to be altered
+        0,                          // start scan line
+        screen_buffer.scanlines,    // number of scan lines
+        screen_buffer.pixels,       // source
+        &screen_buffer.bitmap_info, // bitmap info
+        DIB_RGB_COLORS              // literal RGB values
     );
 
     MUSTE(BitBlt(
