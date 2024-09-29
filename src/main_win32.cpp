@@ -207,15 +207,29 @@ static void particles_draw(ScreenBuffer& screen_buffer)
     }
 }
 
-//============================================================================
-//
-//============================================================================
-
-static void draw(HDC device_context, ScreenBuffer& screen_buffer)
+static void game_update([[maybe_unused]] engine::time::Duration delta)
 {
-    screen_buffer_fill(screen_buffer, argb_create(0x00, 0x00, 0x00));
+    DEBUG_PRINT(std::format(
+                    "previous UPDATE was {} ms ago\n",
+                    delta.value(engine::time::TimeUnit::MILLISECONDS)
+    )
+                    .c_str());
+}
+
+static void game_render(
+    [[maybe_unused]] engine::time::Duration delta,
+    ScreenBuffer& screen_buffer
+)
+{
+    DEBUG_PRINT(std::format(
+                    "previous RENDER was {} ms ago\n",
+                    delta.value(engine::time::TimeUnit::MILLISECONDS)
+    )
+                    .c_str());
+
+    static ARGB black = argb_create(0x00, 0x00, 0x00);
+    screen_buffer_fill(screen_buffer, black);
     particles_draw(screen_buffer);
-    screen_buffer_blit(device_context, screen_buffer);
 }
 
 //============================================================================
@@ -242,11 +256,13 @@ static LRESULT CALLBACK window_procedure(
             screen_buffer_init(window, g_screen_buffer);
             return 0;
 
+        // this is a request to repaint the window that resides outside of the
+        // normal game update-render-loop
         case WM_PAINT: {
             DEBUG_PRINT("WM_PAINT\n");
             PAINTSTRUCT ps{};
             HDC window_dc = MUST(BeginPaint(window, &ps));
-            draw(window_dc, g_screen_buffer);
+            screen_buffer_blit(window_dc, g_screen_buffer);
             EndPaint(window, &ps);
             return 0;
         }
@@ -324,20 +340,35 @@ int APIENTRY _tWinMain(
 
     ShowWindow(window, cmd_show);
 
+    engine::time::TickLimiter update_tick_limiter{30};
+    engine::time::TickLimiter render_tick_limiter{60};
+
     while (g_run_game) {
         auto stopwatch = engine::time::Stopwatch::start();
+
+        // handle mandatory window messages
         win32_message_pump();
 
+        if (update_tick_limiter.should_tick()) {
+            game_update(update_tick_limiter.time_from_last_tick());
+            update_tick_limiter.tick();
+        }
+
+        if (render_tick_limiter.should_tick()) {
+            game_render(
+                render_tick_limiter.time_from_last_tick(),
+                g_screen_buffer
+            );
+            render_tick_limiter.tick();
+        }
+
+        // render the contents of the screen buffer into window
         HDC window_dc = MUST(GetDC(window));
-        draw(window_dc, g_screen_buffer);
+        screen_buffer_blit(window_dc, g_screen_buffer);
         ReleaseDC(window, window_dc);
 
         DEBUG_PRINT(
-            std::format(
-                "{} ms\n",
-                stopwatch.split().value(engine::time::TimeUnit::MILLISECONDS)
-            )
-                .c_str()
+            std::format("{} ns\n", stopwatch.split().nanosecond_value()).c_str()
         );
 
         // Sleep(500);

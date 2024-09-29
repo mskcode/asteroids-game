@@ -1,7 +1,7 @@
 #include "time.h"
 #include <chrono>
 
-using namespace engine::time;
+namespace engine::time {
 
 //===========================================================================
 // Instant
@@ -122,3 +122,32 @@ auto Stopwatch::split() -> Duration
 {
     return Duration::from(start_time_);
 }
+
+//===========================================================================
+// TickLimiter
+//===========================================================================
+
+TickLimiter::TickLimiter(uint64_t target_ticks_per_second)
+{
+    auto x = to_nanoseconds(1, TimeUnit::SECONDS) / target_ticks_per_second;
+    target_minimum_tick_duration_ = Duration::of(x, TimeUnit::NANOSECONDS);
+    last_tick_ = Instant::of(0);
+}
+
+auto TickLimiter::should_tick() const -> bool
+{
+    auto elapsed = Duration::from(last_tick_);
+    return elapsed >= target_minimum_tick_duration_;
+}
+
+auto TickLimiter::time_from_last_tick() const -> Duration
+{
+    return Duration::from(last_tick_);
+}
+
+void TickLimiter::tick()
+{
+    last_tick_ = Instant::now();
+}
+
+} // namespace engine::time

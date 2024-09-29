@@ -167,4 +167,24 @@ private:
     Stopwatch(Instant start_time);
 };
 
+//===========================================================================
+// TickLimiter
+//===========================================================================
+
+class TickLimiter final {
+
+public:
+    TickLimiter(uint64_t target_ticks_per_second);
+
+    [[nodiscard]] auto should_tick() const -> bool;
+    [[nodiscard]] auto time_from_last_tick() const -> Duration;
+
+    void tick();
+
+private:
+    Duration target_minimum_tick_duration_;
+    Instant last_tick_;
+};
+
+
 } // namespace engine::time
