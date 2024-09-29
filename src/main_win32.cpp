@@ -33,6 +33,26 @@ static volatile bool g_run_game{true};
 static ScreenBuffer g_screen_buffer{};
 static engine::prng::Prng<u16> g_color_rng = engine::prng::Prng<u16>::create(255
 );
+static engine::prng::Prng<u32>
+    g_rng = engine::prng::Prng<u32>::createWithNaturalLimits();
+
+static auto argb_create_random() -> ARGB
+{
+    ARGB argb{};
+    argb.colors.red = g_color_rng.nextAs<u8>();
+    argb.colors.green = g_color_rng.nextAs<u8>();
+    argb.colors.blue = g_color_rng.nextAs<u8>();
+    return argb;
+}
+
+static auto argb_create(u8 red, u8 green, u8 blue) -> ARGB
+{
+    ARGB argb{};
+    argb.colors.red = red;
+    argb.colors.green = green;
+    argb.colors.blue = blue;
+    return argb;
+}
 
 static void screen_buffer_init(HWND window, ScreenBuffer& screen_buffer)
 {
@@ -87,6 +107,15 @@ screen_buffer_draw_pixel(ScreenBuffer& screen_buffer, s32 x, s32 y, ARGB color)
     }
 
     screen_buffer.pixels[y * screen_buffer.width + x] = color;
+}
+
+static void screen_buffer_fill(ScreenBuffer& screen_buffer, ARGB color)
+{
+    for (s32 y = 0; y < screen_buffer.height; ++y) {
+        for (s32 x = 0; x < screen_buffer.width; ++x) {
+            screen_buffer_draw_pixel(screen_buffer, x, y, color);
+        }
+    }
 }
 
 static void screen_buffer_fill_random(ScreenBuffer& screen_buffer)
@@ -151,13 +180,69 @@ static void screen_buffer_blit(HDC device_context, ScreenBuffer& screen_buffer)
     DeleteDC(memory_dc);
 }
 
+//============================================================================
+// Game
+//============================================================================
+
+struct Particle {
+    s32 x{};
+    s32 y{};
+    ARGB color{};
+    s32 velocity_x{};
+    s32 velocity_y{};
+    engine::time::Instant birth_time{};
+};
+
+static constexpr u32 MAX_PARTICLES = 100;
+static Particle g_particles[MAX_PARTICLES];
+
+static void particles_init(ScreenBuffer& screen_buffer)
+{
+    auto screen_width = static_cast<u32>(screen_buffer.width);
+    auto screen_height = static_cast<u32>(screen_buffer.height);
+
+    for (u32 i = 0; i < MAX_PARTICLES; ++i) {
+        s32 x = static_cast<s32>(g_rng.next() % screen_width);
+        s32 y = static_cast<s32>(g_rng.next() % screen_height);
+        g_particles[i] = {
+            x,                    // x
+            y,                    // y
+            argb_create_random(), // color
+            0,                    // velocity_x
+            0,                    // velocity_y
+        };
+    }
+}
+
+static void particles_draw(ScreenBuffer& screen_buffer)
+{
+    for (u32 i = 0; i < MAX_PARTICLES; ++i) {
+        Particle& particle = g_particles[i];
+        screen_buffer_draw_pixel(
+            screen_buffer,
+            particle.x,
+            particle.y,
+            particle.color
+        );
+    }
+}
+
+//============================================================================
+//
+//============================================================================
+
 static void draw(HDC device_context, ScreenBuffer& screen_buffer)
 {
-    screen_buffer_fill_random(screen_buffer);
+    screen_buffer_fill(screen_buffer, argb_create(0x00, 0x00, 0x00));
+    particles_draw(screen_buffer);
     screen_buffer_blit(device_context, screen_buffer);
 }
 
-LRESULT CALLBACK window_procedure(
+//============================================================================
+// Win32 windowing
+//============================================================================
+
+static LRESULT CALLBACK window_procedure(
     HWND window,
     UINT message,
     WPARAM wParam,
@@ -168,6 +253,7 @@ LRESULT CALLBACK window_procedure(
         case WM_CREATE:
             DEBUG_PRINT("WM_CREATE\n");
             screen_buffer_init(window, g_screen_buffer);
+            particles_init(g_screen_buffer);
             return 0;
 
         case WM_SIZE:

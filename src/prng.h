@@ -31,9 +31,9 @@ public:
 
     static auto createWithNaturalLimits() -> Prng<T>
     {
-        auto max = std::numeric_limits<T>::max();
-        auto min = std::numeric_limits<T>::min();
-        return {max, min};
+        constexpr auto max = std::numeric_limits<T>::max();
+        constexpr auto min = std::numeric_limits<T>::min();
+        return {min, max};
     }
 
     auto next() -> T

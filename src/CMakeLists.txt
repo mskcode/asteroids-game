@@ -16,6 +16,7 @@ if (MSVC)
             /wd4820          # disable padding warning
             /wd5039          # disable this specific warning
             /wd5045          # disable Spectre warning
+            /wd4505          # disable unreferenced function warning
             /WX              # treat warnings as errors
             /options:strict  # unrecognized compiler options are errors
             /DUNICODE
