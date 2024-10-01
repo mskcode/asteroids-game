@@ -34,17 +34,13 @@ struct ScreenBuffer {
 
 static volatile bool g_run_game{true};
 static ScreenBuffer g_screen_buffer{};
-static engine::prng::Prng<u16> g_color_rng = engine::prng::Prng<u16>::create(255
-);
-static engine::prng::Prng<u32>
-    g_rng = engine::prng::Prng<u32>::create_with_natural_limits();
 
 static auto argb_create_random() -> ARGB
 {
     ARGB argb{};
-    argb.colors.red = g_color_rng.next_as<u8>();
-    argb.colors.green = g_color_rng.next_as<u8>();
-    argb.colors.blue = g_color_rng.next_as<u8>();
+    argb.colors.red = engine::prng::random<u8>(255);
+    argb.colors.green = engine::prng::random<u8>(255);
+    argb.colors.blue = engine::prng::random<u8>(255);
     return argb;
 }
 
@@ -114,10 +110,7 @@ static void screen_buffer_fill(ScreenBuffer& screen_buffer, ARGB color)
 
 static void screen_buffer_fill_random(ScreenBuffer& screen_buffer)
 {
-    ARGB argb{};
-    argb.colors.red = g_color_rng.next_as<u8>();
-    argb.colors.green = g_color_rng.next_as<u8>();
-    argb.colors.blue = g_color_rng.next_as<u8>();
+    ARGB argb = argb_create_random();
     screen_buffer_fill(screen_buffer, argb);
 }
 
@@ -171,6 +164,7 @@ struct Particle {
     s32 velocity_x{};
     s32 velocity_y{};
     engine::time::Instant birth_time{};
+    u32 flags{};
 };
 
 static constexpr u32 MAX_PARTICLES = 100;
@@ -181,15 +175,21 @@ static void particles_init(ScreenBuffer& screen_buffer)
     auto screen_width = static_cast<u32>(screen_buffer.width);
     auto screen_height = static_cast<u32>(screen_buffer.height);
 
+    auto birth_time = engine::time::Instant::now();
     for (u32 i = 0; i < MAX_PARTICLES; ++i) {
-        s32 x = static_cast<s32>(g_rng.next() % screen_width);
-        s32 y = static_cast<s32>(g_rng.next() % screen_height);
+        s32 x = engine::prng::random<s32>(static_cast<s32>(screen_width), 0);
+        s32 y = engine::prng::random<s32>(static_cast<s32>(screen_height), 0);
+        s32 velocity_x = engine::prng::random<s32>(2, -2);
+        s32 velocity_y = engine::prng::random<s32>(2, -2);
+        auto color = argb_create_random();
         g_particles[i] = {
-            x,                    // x
-            y,                    // y
-            argb_create_random(), // color
-            0,                    // velocity_x
-            0,                    // velocity_y
+            x,          // x
+            y,          // y
+            color,      // color
+            velocity_x, // velocity_x
+            velocity_y, // velocity_y
+            birth_time, // birth_time
+            0           // flags
         };
     }
 }
@@ -207,6 +207,31 @@ static void particles_draw(ScreenBuffer& screen_buffer)
     }
 }
 
+static void particles_update()
+{
+    for (u32 i = 0; i < MAX_PARTICLES; ++i) {
+        Particle& particle = g_particles[i];
+
+        particle.x += particle.velocity_x;
+        if (particle.x < 0) {
+            particle.x = 0;
+            particle.velocity_x = -particle.velocity_x;
+        } else if (particle.x >= g_screen_buffer.width) {
+            particle.x = g_screen_buffer.width - 1;
+            particle.velocity_x = -particle.velocity_x;
+        }
+
+        particle.y += particle.velocity_y;
+        if (particle.y < 0) {
+            particle.y = 0;
+            particle.velocity_y = -particle.velocity_y;
+        } else if (particle.y >= g_screen_buffer.height) {
+            particle.y = g_screen_buffer.height - 1;
+            particle.velocity_y = -particle.velocity_y;
+        }
+    }
+}
+
 static void game_update([[maybe_unused]] engine::time::Duration delta)
 {
     DEBUG_PRINT(std::format(
@@ -214,6 +239,8 @@ static void game_update([[maybe_unused]] engine::time::Duration delta)
                     delta.value(engine::time::TimeUnit::MILLISECONDS)
     )
                     .c_str());
+
+    particles_update();
 }
 
 static void game_render(
@@ -236,6 +263,10 @@ static void game_render(
 // Win32 windowing
 //============================================================================
 
+/**
+ * Minimal possible window procedure for the main window since we're pretty
+ * much rendering everything ourselves and all the time.
+ */
 static LRESULT CALLBACK window_procedure(
     HWND window,
     UINT message,
@@ -244,32 +275,10 @@ static LRESULT CALLBACK window_procedure(
 ) noexcept
 {
     switch (message) {
-        case WM_CREATE:
-            DEBUG_PRINT("WM_CREATE\n");
-            screen_buffer_init(window, g_screen_buffer);
-            particles_init(g_screen_buffer);
-            return 0;
-
-        case WM_SIZE:
-            DEBUG_PRINT("WM_SIZE\n");
-            screen_buffer_release(g_screen_buffer);
-            screen_buffer_init(window, g_screen_buffer);
-            return 0;
-
-        // this is a request to repaint the window that resides outside of the
-        // normal game update-render-loop
-        case WM_PAINT: {
-            DEBUG_PRINT("WM_PAINT\n");
-            PAINTSTRUCT ps{};
-            HDC window_dc = MUST(BeginPaint(window, &ps));
-            screen_buffer_blit(window_dc, g_screen_buffer);
-            EndPaint(window, &ps);
-            return 0;
-        }
-
+        // for some reason this must be handled in the window procedure
+        // instead of the message pump loop
         case WM_CLOSE:
-        case WM_DESTROY:
-            DEBUG_PRINT("WM_CLOSE | WM_DESTROY\n");
+            DEBUG_PRINT("WM_CLOSE\n");
             PostQuitMessage(0);
             return 0;
     }
@@ -294,11 +303,12 @@ static void win32_message_pump()
             case WM_QUIT:
                 g_run_game = false;
                 break;
-        }
 
-        // handle the message
-        TranslateMessage(&message);
-        DispatchMessage(&message);
+            default:
+                // let the window procedure handle the message
+                TranslateMessage(&message);
+                DispatchMessage(&message);
+        }
     }
 }
 
@@ -340,36 +350,40 @@ int APIENTRY _tWinMain(
 
     ShowWindow(window, cmd_show);
 
-    engine::time::TickLimiter update_tick_limiter{30};
-    engine::time::TickLimiter render_tick_limiter{60};
+    screen_buffer_init(window, g_screen_buffer);
+    particles_init(g_screen_buffer);
+
+    engine::time::TickLimiter tick_limiter{30};
 
     while (g_run_game) {
         auto stopwatch = engine::time::Stopwatch::start();
 
-        // handle mandatory window messages
+        // handle window messages
         win32_message_pump();
 
-        if (update_tick_limiter.should_tick()) {
-            game_update(update_tick_limiter.time_from_last_tick());
-            update_tick_limiter.tick();
+        bool screen_redraw_needed = false;
+        if (tick_limiter.should_tick()) {
+            auto delta = tick_limiter.time_from_last_tick();
+
+            game_update(delta);
+
+            game_render(delta, g_screen_buffer);
+
+            tick_limiter.tick();
+            screen_redraw_needed = true;
         }
 
-        if (render_tick_limiter.should_tick()) {
-            game_render(
-                render_tick_limiter.time_from_last_tick(),
-                g_screen_buffer
-            );
-            render_tick_limiter.tick();
+        // when screen redraw is needed render the contents of the screen
+        // buffer into window
+        if (screen_redraw_needed) {
+            HDC window_dc = MUST(GetDC(window));
+            screen_buffer_blit(window_dc, g_screen_buffer);
+            ReleaseDC(window, window_dc);
         }
 
-        // render the contents of the screen buffer into window
-        HDC window_dc = MUST(GetDC(window));
-        screen_buffer_blit(window_dc, g_screen_buffer);
-        ReleaseDC(window, window_dc);
-
-        DEBUG_PRINT(
+        /*DEBUG_PRINT(
             std::format("{} ns\n", stopwatch.split().nanosecond_value()).c_str()
-        );
+        );*/
 
         // Sleep(500);
     }

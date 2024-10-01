@@ -16,60 +16,60 @@ enum TimeUnit {
 constexpr auto from_seconds(u64 seconds, TimeUnit time_unit) -> u64
 {
     switch (time_unit) {
-    case TimeUnit::NANOSECONDS:
-        return seconds * 1000000000;
-    case TimeUnit::MICROSECONDS:
-        return seconds * 1000000;
-    case TimeUnit::MILLISECONDS:
-        return seconds * 1000;
-    case TimeUnit::SECONDS:
-        return seconds;
-    case TimeUnit::MINUTES:
-        return seconds / 60;
-    case TimeUnit::HOURS:
-        return seconds / 3600;
-    default:
-        throw std::runtime_error("Unsupported time unit");
+        case TimeUnit::NANOSECONDS:
+            return seconds * 1000000000;
+        case TimeUnit::MICROSECONDS:
+            return seconds * 1000000;
+        case TimeUnit::MILLISECONDS:
+            return seconds * 1000;
+        case TimeUnit::SECONDS:
+            return seconds;
+        case TimeUnit::MINUTES:
+            return seconds / 60;
+        case TimeUnit::HOURS:
+            return seconds / 3600;
+        default:
+            throw std::runtime_error("Unsupported time unit");
     }
 }
 
 constexpr auto from_nanoseconds(u64 nanos, TimeUnit time_unit) -> u64
 {
     switch (time_unit) {
-    case TimeUnit::NANOSECONDS:
-        return nanos;
-    case TimeUnit::MICROSECONDS:
-        return nanos / 1000;
-    case TimeUnit::MILLISECONDS:
-        return nanos / 1000000;
-    case TimeUnit::SECONDS:
-        return nanos / 1000000000;
-    case TimeUnit::MINUTES:
-        return nanos / 60000000000;
-    case TimeUnit::HOURS:
-        return nanos / 3600000000000;
-    default:
-        throw std::runtime_error("Unsupported time unit");
+        case TimeUnit::NANOSECONDS:
+            return nanos;
+        case TimeUnit::MICROSECONDS:
+            return nanos / 1000;
+        case TimeUnit::MILLISECONDS:
+            return nanos / 1000000;
+        case TimeUnit::SECONDS:
+            return nanos / 1000000000;
+        case TimeUnit::MINUTES:
+            return nanos / 60000000000;
+        case TimeUnit::HOURS:
+            return nanos / 3600000000000;
+        default:
+            throw std::runtime_error("Unsupported time unit");
     }
 }
 
 constexpr auto to_nanoseconds(u64 units, TimeUnit time_unit) -> u64
 {
     switch (time_unit) {
-    case TimeUnit::NANOSECONDS:
-        return units;
-    case TimeUnit::MICROSECONDS:
-        return units * 1000;
-    case TimeUnit::MILLISECONDS:
-        return units * 1000000;
-    case TimeUnit::SECONDS:
-        return units * 1000000000;
-    case TimeUnit::MINUTES:
-        return units * 60000000000;
-    case TimeUnit::HOURS:
-        return units * 3600000000000;
-    default:
-        throw std::runtime_error("Unsupported time unit");
+        case TimeUnit::NANOSECONDS:
+            return units;
+        case TimeUnit::MICROSECONDS:
+            return units * 1000;
+        case TimeUnit::MILLISECONDS:
+            return units * 1000000;
+        case TimeUnit::SECONDS:
+            return units * 1000000000;
+        case TimeUnit::MINUTES:
+            return units * 60000000000;
+        case TimeUnit::HOURS:
+            return units * 3600000000000;
+        default:
+            throw std::runtime_error("Unsupported time unit");
     }
 }
 
@@ -178,6 +178,7 @@ public:
 
     [[nodiscard]] auto should_tick() const -> bool;
     [[nodiscard]] auto time_from_last_tick() const -> Duration;
+    [[nodiscard]] auto tick_missed() const -> bool;
 
     void tick();
 
@@ -185,6 +186,5 @@ private:
     Duration target_minimum_tick_duration_;
     Instant last_tick_;
 };
-
 
 } // namespace engine::time

@@ -12,51 +12,6 @@
 
 namespace engine::prng {
 
-class PrngSource;
-
-template <typename T = u64>
-class Prng final {
-    static_assert(
-        std::is_arithmetic_v<T>,
-        "Rng can only be instantiated with arithmetic types"
-    );
-
-public:
-    DELETE_CTOR(Prng);
-    DEFAULT_DTOR(Prng);
-    DEFAULT_COPY(Prng);
-    DEFAULT_MOVE(Prng);
-
-    static auto create(T max, T min = 0) -> Prng<T> { return {min, max}; }
-
-    static auto create_with_natural_limits() -> Prng<T>
-    {
-        constexpr auto max = std::numeric_limits<T>::max();
-        constexpr auto min = std::numeric_limits<T>::min();
-        return {min, max};
-    }
-
-    auto next() -> T
-    {
-        auto& prng_source = PrngSource::instance();
-        return dis_(prng_source.gen_);
-    }
-
-    template <typename U>
-    auto next_as() -> U
-    {
-        return static_cast<U>(next());
-    }
-
-private:
-    Prng(T min, T max) :
-        dis_(min, max)
-    {
-    }
-
-    std::uniform_int_distribution<T> dis_;
-};
-
 class PrngSource final {
     template <typename T>
     friend class Prng;
@@ -83,9 +38,35 @@ public:
 
     void set_fixed_seed(u64 seed) { gen_.seed(seed); }
 
+    [[nodiscard]] auto generator() -> std::mt19937_64& { return gen_; }
+
 private:
     std::random_device rd_;
     std::mt19937_64 gen_;
 };
+
+template <typename T = u64>
+auto random(
+    T max = std::numeric_limits<T>::max(),
+    T min = std::numeric_limits<T>::min()
+) -> T
+{
+    static_assert(
+        std::is_arithmetic_v<T>,
+        "Rng can only be instantiated with arithmetic types"
+    );
+
+    auto& prng_source = PrngSource::instance();
+    auto distribution = std::uniform_int_distribution<T>(min, max);
+    return distribution(prng_source.generator());
+}
+
+template <>
+auto random<u8>(u8 max, u8 min) -> u8
+{
+    auto& prng_source = PrngSource::instance();
+    auto distribution = std::uniform_int_distribution<u16>(min, max);
+    return static_cast<u8>(distribution(prng_source.generator()));
+}
 
 } // namespace engine::prng

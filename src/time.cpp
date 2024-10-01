@@ -137,12 +137,25 @@ TickLimiter::TickLimiter(uint64_t target_ticks_per_second)
 auto TickLimiter::should_tick() const -> bool
 {
     auto elapsed = Duration::from(last_tick_);
+
     return elapsed >= target_minimum_tick_duration_;
 }
 
 auto TickLimiter::time_from_last_tick() const -> Duration
 {
     return Duration::from(last_tick_);
+}
+
+auto TickLimiter::tick_missed() const -> bool
+{
+    auto elapsed = Duration::from(last_tick_);
+
+    // if elapsed is a multiple of target_minimum_tick_duration_, we have
+    // missed tick or ticks
+    auto x = elapsed.nanosecond_value() /
+             target_minimum_tick_duration_.nanosecond_value();
+
+    return x >= 2;
 }
 
 void TickLimiter::tick()
